@@ -1,0 +1,13 @@
+LICENSE
+README.md
+setup.py
+KucoinPy/__init__.py
+KucoinPy/classes.py
+KucoinPy/http.py
+KucoinPy/wrapper.py
+KucoinPy/ws.py
+KucoinPy.egg-info/PKG-INFO
+KucoinPy.egg-info/SOURCES.txt
+KucoinPy.egg-info/dependency_links.txt
+KucoinPy.egg-info/requires.txt
+KucoinPy.egg-info/top_level.txt
