@@ -410,7 +410,7 @@ class KCW:
         return raw[: len(raw.split(".")[0]) + 1 + len(lot_size.split(".")[1])]
 
     def order(self, order: Order, autosplit: int = 1, response=False, sock=None) -> str:
-        sock = sock or self.order_socks.pop()
+        sock = sock or self.sockets.pop()
         if autosplit > 6 or autosplit < 1:
             return "bad autosplit"
 
@@ -428,66 +428,63 @@ class KCW:
                     order.size = self.calc_lots(str(float(order.size)), self.lots[base]["coin_lot"])
                 except:
                     pass
-            return self.single_order(order, sock, response)
+            return self._single_order(order, sock, response)
 
         if len(orders) == 1:
-            return self.single_order(orders[0], sock, response)
+            return self._single_order(orders[0], sock, response)
         else:
-            return self.multi_order(orders, sock, response)
+            return self._multi_order(orders, sock, response)
 
-    def single_order(self, order: Order, sock, response=False) -> Union[bool, Response]:
-        for i in range(3):
-            try:
-                sock.send(
-                    method="POST",
-                    location="/api/v1/hf/orders",
-                    payload=order.__dict__,
-                )
-                if response:
-                    return sock.recv()
+    def _single_order(self, order: Order, sock, response=False) -> Union[bool, Response]:
+        try:
+            sock.send(
+                method="POST",
+                location="/api/v1/hf/orders",
+                payload=order.__dict__,
+            )
+            if response:
+                return sock.recv()
 
-                return True
-            except Exception as e:
-                self.logger.log(
-                    "WARNING",
-                    "Kucoin Client",
-                    msg="Failed to place order",
-                    extras={
-                        "error": str(e),
-                        "traceback": traceback.format_exc(),
-                        "dumped": order.__dict__,
-                    },
-                )
-                continue
+            return True
+        except Exception as e:
+            self.logger.log(
+                "WARNING",
+                "Kucoin Client",
+                msg="Failed to place order",
+                extras={
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                    "dumped": order.__dict__,
+                },
+            )
+            return
 
-        return "end of single_order"
-
-    def multi_order(self, orders: List[Order], sock, response=False) -> Union[bool, Response]:
+    def _multi_order(self, orders: List[Order], sock, response=False) -> Union[bool, Response]:
+        for order in orders:
+            order.clientOid = uuid.uuid4().hex
         payload = {"symbol": orders[0].symbol, "orderList": [i.__dict__ for i in orders]}
-        for i in range(3):
-            try:
-                sock.send(
-                    method="POST",
-                    location="/api/v1/hf/orders/multi",
-                    payload=payload,
-                )
-                if response:
-                    return sock.recv()
-                return True
-            except Exception as e:
-                self.logger.log(
-                    "WARNING",
-                    "Kucoin Client",
-                    msg="Failed to place order",
-                    extras={
-                        "error": str(e),
-                        "traceback": traceback.format_exc(),
-                        "payload": payload,
-                    },
-                )
-                continue
+        try:
+            sock.send(
+                method="POST",
+                location="/api/v1/hf/orders/multi",
+                payload=payload,
+            )
+            if response:
+                return sock.recv()
+            return True
+        except Exception as e:
+            self.logger.log(
+                "WARNING",
+                "Kucoin Client",
+                msg="Failed to place order",
+                extras={
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                    "payload": payload,
+                },
+            )
+            return
 
-        return "end of multi_order"
 
     def cancel_all(self, symbol, retries=5, response=False):
         for i in range(retries):
