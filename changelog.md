@@ -1,3 +1,8 @@
+#### v0.0.2b1
+- Fix: `get_headers` function not returning headers, payload
+- Update: Add traceback field to log statement in `get_balance` function
+
+
 #### v0.0.2
 
 - Fix: clientOid duplication in `multi_order`

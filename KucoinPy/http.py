@@ -27,7 +27,7 @@ def get_headers(kc_api_secret, kc_api_key, PASSPHRASE, method: str, endpoint: st
         "KC-API-KEY": kc_api_key,
         "KC-API-PASSPHRASE": PASSPHRASE,
         "KC-API-KEY-VERSION": "2",
-    }
+    }, payload
 
 
 def make_PASSPHRASE(secret, passphrase):

@@ -525,7 +525,7 @@ class KCW:
                 "WARNING",
                 "Balance maintainence",
                 msg="Failed to get balance",
-                extras={"error": e},
+                extras={"error": e, "traceback": traceback.format_exc()},
             )
             return self.get_balance(retries - 1)
 
@@ -537,7 +537,7 @@ class KCW:
                 "WARNING",
                 "Balance maintainence",
                 msg="Failed to get balance",
-                extras={"error": e},
+                extras={"error": e, "traceback": traceback.format_exc()},
             )
             return self.get_balance(retries - 1)
 
