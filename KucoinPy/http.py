@@ -83,6 +83,7 @@ class HTTP:
 
     def send(self, method: str, location: str, payload: dict = {}, heads_only=False) -> None:
         headers, payload = get_headers(self.kc_api_secret, self.kc_api_key, self.PASSPHRASE, method, location, payload)
+        headers["Host"] = "api.kucoin.com"
         if heads_only:
             return headers
 
