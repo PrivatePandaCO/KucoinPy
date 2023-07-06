@@ -1,3 +1,7 @@
+#### v0.0.03
+- Just push v0.0.2b1 to pypi as v0.0.3
+
+
 #### v0.0.2b1
 - Fix: `get_headers` function not returning headers, payload
 - Update: Add traceback field to log statement in `get_balance` function
