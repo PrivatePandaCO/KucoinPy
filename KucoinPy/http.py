@@ -13,7 +13,8 @@ def get_headers(kc_api_secret, kc_api_key, PASSPHRASE, method: str, endpoint: st
     now = str(int(time.time() * 1000))
     x = f"{now}{method}{endpoint}".encode()
     if payload:
-        x += orjson.dumps(payload)
+        payload = orjson.dumps(payload)
+        x += payload
 
     return {
         "KC-API-SIGN": base64.b64encode(

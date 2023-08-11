@@ -11,6 +11,7 @@ from pyloggor import pyloggor
 from KucoinPy.classes import Order
 from KucoinPy.http import HTTP, Response
 from KucoinPy.ws import KucoinWS
+from urllib.parse import urlencode
 
 
 def empty(message):
@@ -20,6 +21,14 @@ def empty(message):
 def emmptyempty():
     pass
 
+class ListWhichDoesNotErrorOnEmpyPop:
+    def __init__(self):
+        self._list = []
+
+    def pop(self, *args, **kwargs):
+        while True:
+            if self._list:
+                return self._list.pop(*args, **kwargs)
 
 class KCW:
     def __init__(
@@ -31,6 +40,7 @@ class KCW:
         second_message_handler=empty,
         after_ws=emmptyempty,
         logger=pyloggor(project_root="KucoinPy"),
+        intial_sockets=10
     ):
         logger.log("INFO", "Kucoin Client", msg="Starting...")
         self.kc_api_key = kc_api_key
@@ -58,7 +68,9 @@ class KCW:
         self.orders = {}
         self.baseline = {}
 
-        self.sockets: list[HTTP] = [HTTP(self.kc_api_key, self.kc_api_secret, self.kc_api_passphrase) for _ in range(3)]
+        self.sockets = ListWhichDoesNotErrorOnEmpyPop()
+        for _ in range(intial_sockets):
+            self.sockets._list.append(HTTP(self.kc_api_key, self.kc_api_secret, self.kc_api_passphrase))
         threading.Thread(daemon=True, target=self.sock_cache_maintainer).start()
         self.logger.log("DEBUG", "Kucoin Client", msg="Initialized sockets")
 
@@ -223,12 +235,10 @@ class KCW:
                 cOid = data["clientOid"]
                 if cOid not in self.orders:
                     self.orders[cOid] = {
-                        "received": [],
+                        "new": [],
                         "open": [],
                         "match": [],
-                        "filled": [],
-                        "canceled": [],
-                        "update": [],
+                        "done": []
                     }  # initialize with empty list
                 self.orders[cOid][data["status"]].append(data)  # maintain all updates pertaining to an order
                 handled = True
@@ -402,9 +412,9 @@ class KCW:
         while True:
             if self._shutdown_global:
                 continue
-            if len(self.sockets) < 10:
-                self.sockets.append(HTTP(self.kc_api_key, self.kc_api_secret, self.kc_api_passphrase))
-            time.sleep(0.5)  # not spam :)
+            if len(self.sockets._list) < 20:
+                self.sockets._list.append(HTTP(self.kc_api_key, self.kc_api_secret, self.kc_api_passphrase))
+            time.sleep(0.01)  # not spam :)
 
     def calc_lots(self, raw: str, lot_size: str) -> str:
         return raw[: len(raw.split(".")[0]) + 1 + len(lot_size.split(".")[1])]
@@ -557,3 +567,252 @@ class KCW:
             ),
         )
         return r.json()["data"]
+
+    def get_fills(
+        self,
+        orderId: str = "",
+        symbol: str = "",
+        side: str = "",
+        type: str = "",
+        startAt: int = 0,
+        endAt: int = 0,
+        lastId: int = 0,
+        limit: int = 100,
+        retries=3,
+        response=False
+    ):
+        if not orderId and not symbol:
+            return False
+        for i in range(retries):
+            try:
+                sock = self.sockets.pop()
+                params = {
+                    "orderId": orderId,
+                    "symbol": symbol,
+                    "side": side,
+                    "type": type,
+                    "startAt": startAt,
+                    "endAt": endAt,
+                    "lastId": lastId,
+                    "limit": limit
+                }
+                params = {k:v for k,v in params.items() if v}
+                sock.send(
+                    method="GET",
+                    location=f"/api/v1/hf/fills?{urlencode(params)}",
+                    payload=params,
+                )
+                self.logger.log(
+                    "DEBUG",
+                    "Get Fills",
+                    msg=f"Requested fills for {symbol if symbol else orderId}"
+                )
+
+                return sock.recv() if response else True
+            except Exception as e:
+                self.logger.log(
+                    "WARNING",
+                    "Get Fills",
+                    msg=f"Failed to get fills for {symbol if symbol else orderId}",
+                    extras={"error": e, "traceback": traceback.format_exc()},
+                )
+                continue
+
+    def get_filled_orders(
+        self,
+        symbol: str = "",
+        side: str = "",
+        type: str = "",
+        startAt: int = 0,
+        endAt: int = 0,
+        lastId: int = 0,
+        limit: int = 100,
+        retries=3,
+        response=False
+    ):
+        for i in range(retries):
+            try:
+                sock = self.sockets.pop()
+                params = {
+                    "symbol": symbol,
+                    "side": side,
+                    "type": type,
+                    "startAt": startAt,
+                    "endAt": endAt,
+                    "lastId": lastId,
+                    "limit": limit
+                }
+                params = {k:v for k,v in params.items() if v}
+                sock.send(
+                    method="GET",
+                    location=f"/api/v1/hf/orders/done?{urlencode(params)}",
+                    payload=params,
+                )
+                self.logger.log(
+                    "DEBUG",
+                    "Get Orders",
+                    msg=f"Requested filled orders for {symbol}"
+                )
+
+                return sock.recv() if response else True
+            except Exception as e:
+                self.logger.log(
+                    "WARNING",
+                    "Get Orders",
+                    msg=f"Failed to get orders filled for {symbol}",
+                    extras={"error": e, "traceback": traceback.format_exc()},
+                )
+                continue
+
+
+    def get_active_orders(
+        self,
+        symbol: str = "",
+        retries=3,
+        response=False
+    ):
+        for i in range(retries):
+            try:
+                sock = self.sockets.pop()
+                params = {"symbol": symbol}
+                sock.send(
+                    method="GET",
+                    location=f"/api/v1/hf/orders/done?{urlencode(params)}",
+                    payload=params,
+                )
+                self.logger.log(
+                    "DEBUG",
+                    "Get Orders",
+                    msg=f"Requested active orders for {symbol}"
+                )
+
+                return sock.recv() if response else True
+            except Exception as e:
+                self.logger.log(
+                    "WARNING",
+                    "Get Orders",
+                    msg=f"Failed to get active orders for {symbol}",
+                    extras={"error": e, "traceback": traceback.format_exc()},
+                )
+                continue
+
+    def get_active_orders_using_requests(
+        self,
+        symbol: str = "",
+        retries=3,
+        response=False
+    ):
+        for i in range(retries):
+            try:
+                params = {"symbol": symbol}
+                sock = self.sockets.pop()
+                heads = sock.send(
+                    method="GET",
+                    location=f"/api/v1/hf/orders/done?{urlencode(params)}",
+                    heads_only=True
+                )
+
+                r = requests.get(
+                    url=f"https://api.kucoin.com/api/v1/hf/orders/done?{urlencode(params)}",
+                    headers=heads,
+                )
+
+                self.logger.log(
+                    "DEBUG",
+                    "Get Orders",
+                    msg=f"Requested active orders for {symbol}"
+                )
+
+                return r if response else True
+            except Exception as e:
+                self.logger.log(
+                    "WARNING",
+                    "Get Orders",
+                    msg=f"Failed to get active orders for {symbol}",
+                    extras={"error": e, "traceback": traceback.format_exc()},
+                )
+                continue
+
+    def get_filled_orders_using_requests(
+        self,
+        symbol: str = "",
+        side: str = "",
+        type: str = "",
+        startAt: int = 0,
+        endAt: int = 0,
+        lastId: int = 0,
+        limit: int = 100,
+        retries=3,
+        response=False
+    ):
+        for i in range(retries):
+            try:
+                params = {
+                    "symbol": symbol,
+                    "side": side,
+                    "type": type,
+                    "startAt": startAt,
+                    "endAt": endAt,
+                    "lastId": lastId,
+                    "limit": limit
+                }
+                params = {k:v for k,v in params.items() if v}
+                sock = self.sockets.pop()
+                heads = sock.send(
+                    method="GET",
+                    location=f"/api/v1/hf/orders/done?{urlencode(params)}",
+                    heads_only=True
+                )
+
+                r = requests.get(
+                    url=f"https://api.kucoin.com/api/v1/hf/orders/done?{urlencode(params)}",
+                    headers=heads,
+                )
+
+                self.logger.log(
+                    "DEBUG",
+                    "Get Orders",
+                    msg=f"Requested filled orders for {symbol}"
+                )
+
+                return r if response else True
+            except Exception as e:
+                self.logger.log(
+                    "WARNING",
+                    "Get Orders",
+                    msg=f"Failed to get orders filled for {symbol}",
+                    extras={"error": e, "traceback": traceback.format_exc()},
+                )
+                continue
+
+    def get_order_details_with_clientOid(
+        self,
+        clientOid,
+        symbol,
+        retries=3,
+        response=False
+    ):
+        
+        for i in range(retries):
+            try:
+                sock = self.sockets.pop()
+                params = {"symbol": symbol}
+                sock.send(
+                    method="GET",
+                    location=f"/api/v1/hf/orders/client-order/{clientOid}?{urlencode(params)}",
+                )
+                self.logger.log(
+                    "DEBUG",
+                    "Get Orders",
+                    msg=f"Requested order details for {clientOid}"
+                )
+
+                return sock.recv() if response else True
+            except Exception as e:
+                self.logger.log(
+                    "WARNING",
+                    "Get Orders",
+                    msg=f"Failed to get order details for {clientOid}",
+                    extras={"error": e, "traceback": traceback.format_exc()},
+                )
+                continue
