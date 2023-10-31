@@ -43,6 +43,7 @@ class KCW:
         intial_sockets=10
     ):
         logger.log("INFO", "Kucoin Client", msg="Starting...")
+        self.internal_ws_benchmark = []
         self.kc_api_key = kc_api_key
         self.kc_api_secret = kc_api_secret
         self.kc_api_passphrase = kc_api_passphrase
@@ -83,6 +84,7 @@ class KCW:
         self.__boot_ws(new=True)
 
         self.logger.log("INFO", "Kucoin Client", msg="Booted up successfully.")
+
 
     def cache_baseline(self) -> None:
         try:
@@ -242,6 +244,8 @@ class KCW:
                     }  # initialize with empty list
                 self.orders[cOid][data["status"]].append(data)  # maintain all updates pertaining to an order
                 handled = True
+            elif message["topic"] == "/market/level2:BTC-USDT":
+                self.internal_ws_benchmark.append(time.time() * 1000 - message["data"]["time"])
 
         # After handling defaults, if second exists, we pass it to second and forget about it
         # However, if second does not exist and message is not handler, log a warning.
