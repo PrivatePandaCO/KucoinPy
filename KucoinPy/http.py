@@ -16,7 +16,7 @@ def get_headers(kc_api_secret, kc_api_key, PASSPHRASE, method: str, endpoint: st
         payload = orjson.dumps(payload)
         x += payload
 
-    return {
+    headers = {
         "KC-API-SIGN": base64.b64encode(
             hmac.new(
                 kc_api_secret.encode(),
@@ -28,7 +28,13 @@ def get_headers(kc_api_secret, kc_api_key, PASSPHRASE, method: str, endpoint: st
         "KC-API-KEY": kc_api_key,
         "KC-API-PASSPHRASE": PASSPHRASE,
         "KC-API-KEY-VERSION": "2",
-    }, payload
+        "Host": "api.kucoin.com"
+    }
+    if payload:
+        headers["Content-Type"] = "application/json"
+        headers["Content-Length"] = len(payload)
+    
+    return headers, payload
 
 
 def make_PASSPHRASE(secret, passphrase):
@@ -84,17 +90,13 @@ class HTTP:
 
     def send(self, method: str, location: str, payload: dict = {}, heads_only=False) -> None:
         headers, payload = get_headers(self.kc_api_secret, self.kc_api_key, self.PASSPHRASE, method, location, payload)
-        headers["Host"] = "api.kucoin.com"
         if heads_only:
             return headers
 
         d = "\r\n"
+        req = f"{method.upper()} {location} HTTP/1.1\r\n{d.join([f'{a}: {b}' for a, b in headers.items()])}\r\n\r\n".encode()
+
         if payload:
-            req = f"{method.upper()} {location} HTTP/1.1\r\n{d.join([f'{a}: {b}' for a, b in headers.items()])}\r\nContent-Type: application/json\r\nContent-Length: {len(payload)}\r\n\r\n"
-            req = req.encode() + payload
-        else:
-            req = (
-                f"{method.upper()} {location} HTTP/1.1\r\n{d.join([f'{a}: {b}' for a, b in headers.items()])}\r\n\r\n".encode()
-            )
+            req += payload
 
         self.socket.sendall(req)

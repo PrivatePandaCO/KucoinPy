@@ -14,13 +14,6 @@ from KucoinPy.ws import KucoinWS
 from urllib.parse import urlencode
 
 
-def empty(message):
-    pass
-
-
-def emmptyempty():
-    pass
-
 class ListWhichDoesNotErrorOnEmpyPop:
     def __init__(self):
         self._list = []
@@ -30,17 +23,18 @@ class ListWhichDoesNotErrorOnEmpyPop:
             if self._list:
                 return self._list.pop(*args, **kwargs)
 
+
 class KCW:
     def __init__(
         self,
         kc_api_key,
         kc_api_secret,
         kc_api_passphrase,
-        defaults=None,
-        second_message_handler=empty,
-        after_ws=emmptyempty,
+        defaults: list[tuple[str, bool]] = [],
+        second_message_handler=None,
+        after_ws=None,
         logger=pyloggor(project_root="KucoinPy"),
-        intial_sockets=10
+        intial_sockets=10,
     ):
         logger.log("INFO", "Kucoin Client", msg="Starting...")
         self.kc_api_key = kc_api_key
@@ -69,8 +63,10 @@ class KCW:
         self.baseline = {}
 
         self.sockets = ListWhichDoesNotErrorOnEmpyPop()
+
         for _ in range(intial_sockets):
             self.sockets._list.append(HTTP(self.kc_api_key, self.kc_api_secret, self.kc_api_passphrase))
+
         threading.Thread(daemon=True, target=self.sock_cache_maintainer).start()
         self.logger.log("DEBUG", "Kucoin Client", msg="Initialized sockets")
 
@@ -196,8 +192,11 @@ class KCW:
             msg="Successfully booted Kucoin WebSocket",
         )
         self._shutdown_ws = False
-        if not new:
-            self.after_ws()
+        if not new and self.after_ws:
+            try:
+                self.after_ws()
+            except:
+                pass
 
     def message_handler(self) -> None:
         while True:
@@ -234,20 +233,19 @@ class KCW:
                 data["filledSize"] = data.get("filledSize", "0")
                 cOid = data["clientOid"]
                 if cOid not in self.orders:
-                    self.orders[cOid] = {
-                        "new": [],
-                        "open": [],
-                        "match": [],
-                        "done": []
-                    }  # initialize with empty list
+                    self.orders[cOid] = {"new": [], "open": [], "match": [], "done": []}  # initialize with empty list
                 self.orders[cOid][data["status"]].append(data)  # maintain all updates pertaining to an order
                 handled = True
 
         # After handling defaults, if second exists, we pass it to second and forget about it
         # However, if second does not exist and message is not handler, log a warning.
 
-        if self.second_message_handler != empty:
-            return self.second_message_handler(message)
+        if self.second_message_handler:
+            try:
+                self.second_message_handler(message)
+            except:
+                pass
+            return 
 
         if not handled:
             self.logger.log(
@@ -495,7 +493,6 @@ class KCW:
             )
             return
 
-
     def cancel_all(self, symbol, retries=5, response=False):
         for i in range(retries):
             try:
@@ -579,7 +576,7 @@ class KCW:
         lastId: int = 0,
         limit: int = 100,
         retries=3,
-        response=False
+        response=False,
     ):
         if not orderId and not symbol:
             return False
@@ -594,19 +591,15 @@ class KCW:
                     "startAt": startAt,
                     "endAt": endAt,
                     "lastId": lastId,
-                    "limit": limit
+                    "limit": limit,
                 }
-                params = {k:v for k,v in params.items() if v}
+                params = {k: v for k, v in params.items() if v}
                 sock.send(
                     method="GET",
                     location=f"/api/v1/hf/fills?{urlencode(params)}",
                     payload=params,
                 )
-                self.logger.log(
-                    "DEBUG",
-                    "Get Fills",
-                    msg=f"Requested fills for {symbol if symbol else orderId}"
-                )
+                self.logger.log("DEBUG", "Get Fills", msg=f"Requested fills for {symbol if symbol else orderId}")
 
                 return sock.recv() if response else True
             except Exception as e:
@@ -628,7 +621,7 @@ class KCW:
         lastId: int = 0,
         limit: int = 100,
         retries=3,
-        response=False
+        response=False,
     ):
         for i in range(retries):
             try:
@@ -640,19 +633,15 @@ class KCW:
                     "startAt": startAt,
                     "endAt": endAt,
                     "lastId": lastId,
-                    "limit": limit
+                    "limit": limit,
                 }
-                params = {k:v for k,v in params.items() if v}
+                params = {k: v for k, v in params.items() if v}
                 sock.send(
                     method="GET",
                     location=f"/api/v1/hf/orders/done?{urlencode(params)}",
                     payload=params,
                 )
-                self.logger.log(
-                    "DEBUG",
-                    "Get Orders",
-                    msg=f"Requested filled orders for {symbol}"
-                )
+                self.logger.log("DEBUG", "Get Orders", msg=f"Requested filled orders for {symbol}")
 
                 return sock.recv() if response else True
             except Exception as e:
@@ -664,13 +653,7 @@ class KCW:
                 )
                 continue
 
-
-    def get_active_orders(
-        self,
-        symbol: str = "",
-        retries=3,
-        response=False
-    ):
+    def get_active_orders(self, symbol: str = "", retries=3, response=False):
         for i in range(retries):
             try:
                 sock = self.sockets.pop()
@@ -680,11 +663,7 @@ class KCW:
                     location=f"/api/v1/hf/orders/done?{urlencode(params)}",
                     payload=params,
                 )
-                self.logger.log(
-                    "DEBUG",
-                    "Get Orders",
-                    msg=f"Requested active orders for {symbol}"
-                )
+                self.logger.log("DEBUG", "Get Orders", msg=f"Requested active orders for {symbol}")
 
                 return sock.recv() if response else True
             except Exception as e:
@@ -696,32 +675,19 @@ class KCW:
                 )
                 continue
 
-    def get_active_orders_using_requests(
-        self,
-        symbol: str = "",
-        retries=3,
-        response=False
-    ):
+    def get_active_orders_using_requests(self, symbol: str = "", retries=3, response=False):
         for i in range(retries):
             try:
                 params = {"symbol": symbol}
                 sock = self.sockets.pop()
-                heads = sock.send(
-                    method="GET",
-                    location=f"/api/v1/hf/orders/done?{urlencode(params)}",
-                    heads_only=True
-                )
+                heads = sock.send(method="GET", location=f"/api/v1/hf/orders/done?{urlencode(params)}", heads_only=True)
 
                 r = requests.get(
                     url=f"https://api.kucoin.com/api/v1/hf/orders/done?{urlencode(params)}",
                     headers=heads,
                 )
 
-                self.logger.log(
-                    "DEBUG",
-                    "Get Orders",
-                    msg=f"Requested active orders for {symbol}"
-                )
+                self.logger.log("DEBUG", "Get Orders", msg=f"Requested active orders for {symbol}")
 
                 return r if response else True
             except Exception as e:
@@ -743,7 +709,7 @@ class KCW:
         lastId: int = 0,
         limit: int = 100,
         retries=3,
-        response=False
+        response=False,
     ):
         for i in range(retries):
             try:
@@ -754,26 +720,18 @@ class KCW:
                     "startAt": startAt,
                     "endAt": endAt,
                     "lastId": lastId,
-                    "limit": limit
+                    "limit": limit,
                 }
-                params = {k:v for k,v in params.items() if v}
+                params = {k: v for k, v in params.items() if v}
                 sock = self.sockets.pop()
-                heads = sock.send(
-                    method="GET",
-                    location=f"/api/v1/hf/orders/done?{urlencode(params)}",
-                    heads_only=True
-                )
+                heads = sock.send(method="GET", location=f"/api/v1/hf/orders/done?{urlencode(params)}", heads_only=True)
 
                 r = requests.get(
                     url=f"https://api.kucoin.com/api/v1/hf/orders/done?{urlencode(params)}",
                     headers=heads,
                 )
 
-                self.logger.log(
-                    "DEBUG",
-                    "Get Orders",
-                    msg=f"Requested filled orders for {symbol}"
-                )
+                self.logger.log("DEBUG", "Get Orders", msg=f"Requested filled orders for {symbol}")
 
                 return r if response else True
             except Exception as e:
@@ -785,14 +743,7 @@ class KCW:
                 )
                 continue
 
-    def get_order_details_with_clientOid(
-        self,
-        clientOid,
-        symbol,
-        retries=3,
-        response=False
-    ):
-        
+    def get_order_details_with_clientOid(self, clientOid, symbol, retries=3, response=False):
         for i in range(retries):
             try:
                 sock = self.sockets.pop()
@@ -801,11 +752,7 @@ class KCW:
                     method="GET",
                     location=f"/api/v1/hf/orders/client-order/{clientOid}?{urlencode(params)}",
                 )
-                self.logger.log(
-                    "DEBUG",
-                    "Get Orders",
-                    msg=f"Requested order details for {clientOid}"
-                )
+                self.logger.log("DEBUG", "Get Orders", msg=f"Requested order details for {clientOid}")
 
                 return sock.recv() if response else True
             except Exception as e:

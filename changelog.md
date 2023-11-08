@@ -1,4 +1,8 @@
-#### v0.0.03
+#### v0.0.3b1
+- Internal; Update send() function in http.py
+
+
+#### v0.0.3
 - Just push v0.0.2b1 to pypi as v0.0.3
 
 

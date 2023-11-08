@@ -10,7 +10,6 @@ That said, I do believe this wrapper is pretty good for it's speed, and I'd appr
 
 <details>
     <summary> Features </summary>
-
 - Socket cache
   - A new socket is used for each request.
   - This is done, in light of previous tests, to avoid buffer errors and closed socket errors.
@@ -59,8 +58,11 @@ The variables to be passed in to `KCW()`<br>
   - Does not pass in any parameter
 - `logger`: Defaults to `pyloggor(project_root="KucoinPy")`
   - A pyloggor object; check it out [here!](https://pypi.org/project/pyloggor/)
-  - This is a library created by me for beautiful logging :)
+  - This is a library created by me for programmatically easy and visually appealing logging :)
   - Please note the default logger uses an option `project_root` which MAY slow down logging to about 0.0001 seconds or 0.1 ms for one log call. This occurs due to the stack depth being big.
+- `intial_sockets`: Defaults to `10`
+  - Number of sockets to boot when starting up. This can be limited to speed up the startup.
+  - Each request uses a socket and discards it, hence we require multiple.
 
 </details>
 
@@ -70,7 +72,6 @@ The variables to be passed in to `KCW()`<br>
 - I don't like the fact so much overhead is ran if only and only the websocket is required, probably something to be done on a later date.
 - The recv function in the socket wrapper (`HTTP`), does not properly manage content length and often contains data which the `Response` class does not properly handle.
   - This happens when the response data is big and gets chunked, in which case the splitting and stuff doesn't resolve properly.
-- Clean up log statements; really inconsistent and messy.
 - Add support for the good stuff like transfers and order history and balance etc etc
 
 </details>
